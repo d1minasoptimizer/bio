@@ -595,6 +595,18 @@ section{position:relative}
 .call i{display:block;font:500 10px/1 var(--mono, ui-monospace, monospace);letter-spacing:.16em;color:rgb(var(--led));opacity:.9;font-style:normal}
 .call b{display:block;margin-top:6px;font-weight:650;font-size:14px;line-height:1.15;color:#f5f5f5}
 .call span{display:block;margin-top:4px;font-size:12px;line-height:1.35;color:#a7aab0}
+/* ---------- hélices girando no plano certo (elipse medida em cada ventoinha) ---------- */
+.fan{overflow:hidden;-webkit-mask-image:radial-gradient(closest-side,#000 calc(var(--m, 86%) - 7%),transparent var(--m, 86%));mask-image:radial-gradient(closest-side,#000 calc(var(--m, 86%) - 7%),transparent var(--m, 86%))}
+.fan i{overflow:hidden}
+.fan b{position:absolute;display:block;background-size:100% 100%;background-repeat:no-repeat}
+[data-led="rgb"] .shot[data-shot="gab"] .fz-c{display:none}
+/* ---------- peças no fundo da página: acima do fundo de cada seção, atrás do conteúdo, desfocadas ---------- */
+.bgp{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;opacity:0;transition:opacity .8s var(--ease)}
+.bgp.on{opacity:1}
+.bgp img{position:absolute;left:0;top:0;height:auto;opacity:.3;filter:blur(var(--b, 6px)) invert(var(--inv, 0));transition:filter .6s,opacity .6s;will-change:transform}
+.bgp.inv{--inv:1}
+.bgp.inv img{opacity:.24}
+main > section > .wrap,footer > .wrap{position:relative;z-index:1}
 /* telas médias: a foto do PC fica acima do texto */
 @media (min-width:900px) and (max-width:1099px){
   .hero{flex-direction:column;align-items:stretch;justify-content:flex-start;min-height:0}
@@ -1157,37 +1169,35 @@ window.D1 = {
   if ('IntersectionObserver' in window) new IntersectionObserver(function (en) { fbVis = en[0].isIntersecting; if (fbVis) { fbLast = performance.now(); requestAnimationFrame(fbTick); } }).observe(fbx);
 
   /* =================== LED, VENTOINHAS E PEÇAS =================== */
-  /* as pás das fotos não giram (girar a foto em perspectiva deixava a hélice torta); quem corre é a luz ARGB por cima */
-  var FANS = {}, FANS_OLD = {
-    gpu: { W: 1536, H: 864, f: [[586, 364, 180, .87], [936.4, 419.6, 178, .83], [1260, 464, 170, .82]] },
-    aio: { W: 1536, H: 864, f: [[392.4, 278, 158, .9], [766, 327.6, 158, .87], [1086, 372.4, 150, .84]] }
+  /* hélices girando: elipse medida no contorno de cada ventoinha da foto [centro x, centro y, raio, achatamento, giro da elipse (graus), até onde gira]
+     a foto gira dentro do plano da ventoinha (desfaz a perspectiva, gira e refaz), então o cubo fica parado e as pás não entortam */
+  var FANS = {
+    gpu: { W: 1536, H: 864, f: [[584.85, 379.1, 186.86, .8535, 78.07, .86], [931.1, 425.43, 177.76, .8163, 76, .86], [1255.15, 473.59, 170.05, .7903, 75.13, .86]] },
+    aio: { W: 1536, H: 864, f: [[391.7, 290.23, 164.26, .8939, 71.24, .86], [763.63, 342.94, 163.77, .8175, 79.71, .86], [1082.08, 384.02, 152.98, .8185, 77.84, .86]] },
+    gab: { W: 648, H: 720, f: [[95.52, 255.78, 73.76, .8411, 79.33, .86], [204.41, 154.22, 80.81, .1959, 1.11, .86], [332.3, 133.89, 80.31, .2427, -1.21, .86], [496.9, 239.48, 81.63, .7962, -86.05, .86], [494.91, 418, 82.54, .8124, 76.39, .62], [211.01, 523.62, 78.33, .2166, -1.01, .86], [349.15, 547.92, 87.06, .2298, 1.06, .86]] }
   };
   var spinners = [], rings = [], hues = [];
   document.querySelectorAll('.shot[data-shot]').forEach(function (shot) {
     var cfg = FANS[shot.getAttribute('data-shot')]; if (!cfg) return;
     var W = cfg.W, H = cfg.H, src = shot.querySelector('img').getAttribute('src');
     cfg.f.forEach(function (a) {
-      var cx = a[0], cy = a[1], r = a[2], k = a[3];
+      var cx = a[0], cy = a[1], R = a[2], k = a[3], th = a[4];
       var fan = document.createElement('span'); fan.className = 'fan';
-      fan.style.cssText = 'left:' + (cx / W * 100) + '%;top:' + (cy / H * 100) + '%;width:' + (2 * r / W * 100) + '%;--sx:' + k;
-      var inner = document.createElement('i');
-      var kx = W / (k * 2 * r), ky = H / (2 * r);
-      inner.style.backgroundImage = 'url("' + src + '")';
-      inner.style.backgroundSize = (kx * 100) + '% ' + (ky * 100) + '%';
-      inner.style.backgroundPosition = ((0.5 - cx / (k * 2 * r)) / (1 - kx) * 100) + '% ' + ((0.5 - cy / (2 * r)) / (1 - ky) * 100) + '%';
-      fan.appendChild(inner); shot.appendChild(fan);
-      spinners.push({ el: inner, hero: !!shot.closest('.hero'), a: Math.random() * 6.28, sp: 0.9 + Math.random() * 0.2 });
+      fan.style.cssText = 'left:' + (cx / W * 100) + '%;top:' + (cy / H * 100) + '%;width:' + (2 * R / W * 100) + '%;transform:translate(-50%,-50%) rotate(' + th + 'deg) scale(1,' + k + ');--m:' + (a[5] * 100) + '%';
+      var spin = document.createElement('i'), pic = document.createElement('b');
+      pic.style.cssText = 'width:' + (W / (2 * R) * 100) + '%;height:' + (H / (2 * R) * 100) + '%;left:' + ((R - cx) / (2 * R) * 100) + '%;top:' + ((R - cy) / (2 * R) * 100) + '%;background-image:url("' + src + '");transform-origin:' + (cx / W * 100) + '% ' + (cy / H * 100) + '%;transform:scale(1,' + (1 / k) + ') rotate(' + (-th) + 'deg)';
+      spin.appendChild(pic); fan.appendChild(spin); shot.appendChild(fan);
+      spinners.push({ el: spin, hero: !!shot.closest('.hero'), a: Math.random() * 6.28, sp: 0.9 + Math.random() * 0.2 });
     });
   });
-
   /* luz ARGB: [centro x, centro y, raio maior, raio menor, giro da elipse (graus), cubo x, cubo y]
      lcd = tela da bomba [centro x, centro y, largura, altura, inclinação]; pás = desenhar pás girando por cima (gabinete) */
   var ARGB = {
-    gab: { W: 648, H: 720, lcd: [285, 205, 96, 78, -12.9], f: [
-      [89, 258.9, 79.7, 60.9, 75.8, 101.8, 254.3], [200.7, 154.2, 87.7, 15.5, 1.7, 203.9, 154.2], [325, 133, 79, 21.8, -2.1, 336.9, 134.3],
-      [502, 243.6, 94.2, 63.2, 99.4, 487, 240], [500.8, 417.2, 95.4, 64.4, 77.7, 490, 412], [210.5, 524.3, 86.1, 16.5, -0.4, 206.5, 522.1], [347.1, 548, 94.5, 20.5, 1.3, 346.5, 544.4]] },
-    aio: { W: 1536, H: 864, lcd: [1017, 637, 136, 150, 9.6], f: [[392.4, 278, 170, 153, 90, 392.4, 278], [766, 327.6, 172, 149.6, 90, 766, 327.6], [1086, 372.4, 162, 136.1, 90, 1086, 372.4]] },
-    gpu: { W: 1536, H: 864, f: [[586, 364, 200, 174, 90, 586, 364], [936.4, 419.6, 192, 159.4, 90, 936.4, 419.6], [1260, 464, 182, 149.2, 90, 1260, 464]] }
+    gab: { W: 648, H: 720, f: [
+      [95.52, 255.78, 73.76, 62.04, 79.33, 95.52, 255.78], [204.41, 154.22, 80.81, 15.83, 1.11, 204.41, 154.22], [332.3, 133.89, 80.31, 19.49, -1.21, 332.3, 133.89],
+      [496.9, 239.48, 81.63, 64.99, -86.05, 496.9, 239.48], [494.91, 418, 82.54, 67.06, 76.39, 494.91, 418], [211.01, 523.62, 78.33, 16.97, -1.01, 211.01, 523.62], [349.15, 547.92, 87.06, 20.01, 1.06, 349.15, 547.92]] },
+    aio: { W: 1536, H: 864, lcd: [1017, 637, 136, 150, 9.6], f: [[391.7, 290.23, 164.26, 146.83, 71.24, 391.7, 290.23], [763.63, 342.94, 163.77, 133.88, 79.71, 763.63, 342.94], [1082.08, 384.02, 152.98, 125.21, 77.84, 1082.08, 384.02]] },
+    gpu: { W: 1536, H: 864, f: [[584.85, 379.1, 186.86, 159.49, 78.07, 584.85, 379.1], [931.1, 425.43, 177.76, 145.11, 76, 931.1, 425.43], [1255.15, 473.59, 170.05, 134.39, 75.13, 1255.15, 473.59]] }
   };
   document.querySelectorAll('.shot[data-shot]').forEach(function (shot) {
     var G = ARGB[shot.getAttribute('data-shot')]; if (!G) return;
@@ -1211,19 +1221,14 @@ window.D1 = {
     if (G.lcd) {
       var c = G.lcd, lcd = document.createElement('span'); lcd.className = 'lcd';
       lcd.style.cssText = 'left:' + (c[0] / G.W * 100) + '%;top:' + (c[1] / G.H * 100) + '%;width:' + (c[2] / G.W * 100) + '%;aspect-ratio:' + c[2] + ' / ' + c[3] + ';--sk:' + c[4] + 'deg';
-      lcd.innerHTML = '<span class="lsp"></span>';
+      lcd.innerHTML = '<span class="lsp"></span><span class="lcd-g"></span>';
       shot.appendChild(lcd);
     }
   });
 
   /* a logo animada (a mesma do GIF) gravada nas peças: [centro x, centro y, tamanho, giro, inclinação] em pixels da foto */
-  var PLOGO = {
-    placa: { W: 1536, H: 864, l: [[995, 618, 88, 0, 0]] },
-    gpu: { W: 1536, H: 864, l: [[372, 296, 54, 0, -8]] },
-    ram: { W: 1152, H: 1536, l: [[392, 800, 80, 0, 0], [713, 868, 74, 0, 0]] },
-    ssd: { W: 1536, H: 864, l: [[372, 352, 56, 11, 0]] },
-    cpu: { W: 1024, H: 1024, l: [[706, 604, 62, 0, 0]] }
-  };
+  /* a logo fica só nas telas (bomba do water cooler e o vidro no fundo do gabinete) */
+  var PLOGO = {};
   Object.keys(PLOGO).forEach(function (k) {
     var pt = document.querySelector('#scn .pt[data-p="' + k + '"]'), G = PLOGO[k]; if (!pt) return;
     G.l.forEach(function (l) {
@@ -1451,7 +1456,7 @@ window.D1 = {
   });
   pin.appendChild(calls);
   function drawCalls(lay, pos, dt) {
-    var on = mode === 'd', list = [];
+    var on = mode === 'd' && pin.clientWidth >= 1100, list = [], gap = 0;
     calls.style.display = on ? '' : 'none'; if (!on) return;
     var colX = Math.min(VIEW.ox + 1330 * VIEW.s, pin.clientWidth - 248), H = pin.clientHeight;
     Object.keys(CALL).forEach(function (k) {
@@ -1461,16 +1466,17 @@ window.D1 = {
       var P = pos[k], a = CALL[k][0], ax = VIEW.ox + (P[0] + a[0] * P[2]) * VIEW.s, ay = VIEW.oy + (P[1] + a[1] * P[3]) * VIEW.s;
       list.push({ k: k, ax: ax, ay: ay, y: ay });
     });
+    list.forEach(function (it) { it.h = CEL[it.k].lb.offsetHeight || 70; gap = Math.max(gap, it.h + 10); });
     list.sort(function (p, q) { return p.ay - q.ay; });
-    for (var i = 0; i < list.length; i++) { list[i].y = Math.max(list[i].y, 86, i ? list[i - 1].y + 64 : 0); }
-    for (var j = list.length - 1; j >= 0; j--) { list[j].y = Math.min(list[j].y, H - 48 - (list.length - 1 - j) * 64); }
+    for (var i = 0; i < list.length; i++) { list[i].y = Math.max(list[i].y, 86, i ? list[i - 1].y + gap : 0); }
+    for (var j = list.length - 1; j >= 0; j--) { list[j].y = Math.min(list[j].y, H - 48 - (list.length - 1 - j) * gap); }
     list.forEach(function (it) {
       var e = CEL[it.k], w = e.w, ex = colX - 18;
       e.ln.setAttribute('d', 'M' + it.ax.toFixed(1) + ' ' + it.ay.toFixed(1) + ' L' + (ex - 26).toFixed(1) + ' ' + it.y.toFixed(1) + ' L' + ex.toFixed(1) + ' ' + it.y.toFixed(1));
       e.ln.style.strokeDashoffset = (1 - w).toFixed(3); e.ln.style.opacity = Math.min(1, w * 1.6).toFixed(3);
       e.dot.setAttribute('cx', it.ax.toFixed(1)); e.dot.setAttribute('cy', it.ay.toFixed(1)); e.dot.style.opacity = w.toFixed(3);
       e.lb.style.opacity = smooth(.45, 1, w).toFixed(3);
-      e.lb.style.transform = 'translate(' + (colX + (1 - w) * 18).toFixed(1) + 'px,' + (it.y - 22).toFixed(1) + 'px)';
+      e.lb.style.transform = 'translate(' + (colX + (1 - w) * 18).toFixed(1) + 'px,' + (it.y - it.h / 2).toFixed(1) + 'px)';
     });
   }
   /* para conferir sem olho: caixas de todas as peças em qualquer ponto da rolagem */
@@ -1593,5 +1599,35 @@ window.D1 = {
   });
 })();
 </script>
-
+<script>
+/* as peças continuam no fundo da página inteira: desfocadas, atrás do conteúdo, andando junto com a rolagem (descendo e subindo) */
+(function () {
+  var src = {}; document.querySelectorAll('#scn .pt[data-p]').forEach(function (pt) { var im = pt.querySelector('img'); if (im) src[pt.getAttribute('data-p')] = im.getAttribute('src'); });
+  /* [peça, centro x (vw), posição inicial (fração do ciclo), largura (vw), velocidade, giro inicial, giro por px rolado, desfoque] */
+  var C = [['aio', 88, .02, 34, .32, -8, .006, 7], ['placa', 8, .24, 32, .2, 6, -.004, 9], ['gpu', 87, .5, 36, .42, 10, .008, 6], ['ram', 10, .7, 13, .5, -14, -.01, 5], ['ssd', 90, .86, 22, .58, 18, .012, 5], ['cpu', 12, .4, 11, .64, -20, .015, 4]];
+  var box = document.createElement('div'); box.className = 'bgp'; box.setAttribute('aria-hidden', 'true');
+  var P = C.filter(function (c) { return src[c[0]]; }).map(function (c) {
+    var im = document.createElement('img'); im.src = src[c[0]]; im.alt = ''; im.decoding = 'async'; im.style.setProperty('--b', c[7] + 'px'); box.appendChild(im); return { el: im, c: c };
+  });
+  document.body.appendChild(box);
+  var light = [].slice.call(document.querySelectorAll('#loja, #duvidas')), T = 0, last = performance.now(), on = false;
+  function frame(now) {
+    var dt = Math.min(.05, (now - last) / 1000); last = now; T += dt;
+    var W = innerWidth, H = innerHeight, m = W < 900 ? 1.7 : 1, cyc = H + 700, sy = scrollY;
+    P.forEach(function (o, i) {
+      var c = o.c, w = c[3] * m * W / 100, y = ((c[2] * cyc - sy * c[4]) % cyc + cyc) % cyc - 350, x = c[1] * W / 100 + Math.sin(T * .35 + i * 1.7) * 14;
+      o.el.style.width = w.toFixed(0) + 'px';
+      o.el.style.transform = 'translate3d(' + (x - w / 2).toFixed(1) + 'px,' + (y - w * .28).toFixed(1) + 'px,0) rotate(' + (c[5] + sy * c[6] + Math.sin(T * .5 + i) * 2).toFixed(2) + 'deg)';
+    });
+    var mid = H / 2, inv = light.some(function (s) { var r = s.getBoundingClientRect(); return r.top < mid && r.bottom > mid; });
+    box.classList.toggle('inv', inv);
+    if (on) requestAnimationFrame(frame);
+  }
+  /* só anda quando já passou da experiência (antes disso o fundo fica coberto pelo topo e pelo PC) */
+  var pec = document.getElementById('pecas');
+  function check() { var vis = !pec || pec.getBoundingClientRect().bottom < innerHeight * 1.2; box.classList.toggle('on', vis); if (vis && !on && !document.hidden) { on = true; last = performance.now(); requestAnimationFrame(frame); } else if (!vis) on = false; }
+  addEventListener('scroll', check, { passive: true }); addEventListener('resize', check); document.addEventListener('visibilitychange', function () { if (document.hidden) on = false; else check(); });
+  check();
+})();
+</script>
 </html>
